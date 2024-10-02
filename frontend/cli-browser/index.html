@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+<body>
+    API monitoring
+</body>
+<script>
+    console.log("Javascript is running")
+    const eventSource = new EventSource('http://localhost:3000/monitoring/real-time');
+    eventSource.onmessage = function (event) {
+    console.log("Real-time data:", event.data);
+};
+eventSource.onerror = function (err) {
+    console.error("EventSource failed:", err);
+};
+
+</script>
+</html>
