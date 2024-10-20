@@ -6,69 +6,103 @@ import {
   YAxis,
   Tooltip,
   CartesianGrid,
-  Legend,
   ResponsiveContainer,
 } from 'recharts';
-import io from "socket.io-client";
+import io from 'socket.io-client';
 
 const Chart = () => {
   const [data, setData] = useState([]);
-  const [timeCounter, setTimeCounter] = useState(0); // Counter for x-axis time
+  const [timeCounter, setTimeCounter] = useState(0);
+  const [avgRespTime, setAvgRespTime] = useState(0);
+  const [avgRespData, setAvgRespData] = useState([]); 
 
   useEffect(() => {
     const socket = io('http://localhost:3000');
 
-    if (socket) {
-      socket.emit('start-monitoring', {
-        endpoint: "https://polite-bat-77.telebit.io/data",
-        method: 'GET',
+    socket.emit('start-monitoring', {
+      endpoint: "https://polite-bat-77.telebit.io/data",
+      method: 'GET',
+    });
+
+    socket.on('monitoring-result', (result) => {
+      const newDataPoint = {
+        time: timeCounter,
+        responseTime: result.responseTime,
+      };
+
+      setData((prevData) => {
+        const updatedData = [...prevData, newDataPoint];
+        if (updatedData.length > 50) {
+          return updatedData.slice(updatedData.length - 50);
+        }
+        return updatedData;
       });
 
-      // Listen for the monitoring result
-      socket.on('monitoring-result', (result) => {
-        console.log(result);
+      setTimeCounter((prev) => prev + 1);
+    });
 
-        // Create a new data point based on the result
-        const newDataPoint = {
-          time: timeCounter + 1, // Increment time based on the counter
-          responseTime: result.responseTime, // Use the response time from the result
-        };
+    return () => socket.disconnect();
+  }, [timeCounter]);
 
-        setData((prevData) => {
-          const updatedData = [...prevData, newDataPoint];
-          // Keep only the last 20 data points
-          if (updatedData.length > 20) {
-            return updatedData.slice(updatedData.length - 20);
-          }
-          return updatedData;
-        });
+  useEffect(() => {
+    CalculateAvg();
+  }, [data]);
 
-        setTimeCounter((prev) => prev + 1); // Increment the time counter
-      });
+  function CalculateAvg() {
+    let sum = 0;
+    data.forEach(e => {
+      sum += e.responseTime;
+    });
 
-      // Handle monitoring error
-      socket.on('monitoring-error', (error) => {
-        console.log(error);
-      });
-    }
+    const avg = Math.ceil(sum / data.length);
+    setAvgRespTime(avg);
 
-    // Cleanup function to disconnect the socket
-    return () => {
-      socket.disconnect();
-    };
-  }, [timeCounter]); // Add timeCounter as a dependency
+    const avgLineData = data.map((point) => ({
+      time: point.time,
+      avgResponseTime: avg,
+    }));
+
+    setAvgRespData(avgLineData);
+  }
+
+  // Calculate min and max response times for Y-axis domain
+  const minResponseTime = Math.min(...data.map(d => d.responseTime), 0); // Ensure min is at least 0
+  const maxResponseTime = Math.max(...data.map(d => d.responseTime), 0);
 
   return (
-    <div style={{ maxWidth: '800px', margin: 'auto', padding: '20px' }}>
+    <div style={{ maxWidth: '1000px', margin: 'auto', padding: '20px' }}>
       <h2>Real-Time Response Time</h2>
-      <ResponsiveContainer width={800} height={400}>
+      <h1>
+        Average Response time: {avgRespTime}ms
+      </h1>
+      <ResponsiveContainer width={1000} height={400}>
         <LineChart data={data}>
-          <CartesianGrid strokeDasharray="3 3" />
-          <XAxis dataKey="time" label={{ value: "Time (s)", position: "insideBottomRight", offset: -5 }} />
-          <YAxis label={{ value: "Response Time (ms)", angle: -90, position: "insideLeft" }} domain={[0, 'dataMax + 100']} />
-          <Tooltip formatter={(value) => [`Response Time: ${value} ms`, '']} />
-          <Legend />
-          <Line type="monotone" dataKey="responseTime" stroke="#8884d8" activeDot={{ r: 8 }} />
+          <XAxis
+            dataKey="time"
+            label={{ value: 'Time (s)', position: 'insideBottomRight', offset: 0 }}
+            domain={['dataMin', 'dataMax']}
+          />
+          <YAxis
+            label={{ value: 'Response Time (ms)', angle: -90, position: 'insideLeft' }}
+            domain={[minResponseTime, maxResponseTime]} // Set dynamic domain
+          />
+          <Tooltip />
+          <Line
+            type="monotone"
+            dataKey="responseTime"
+            stroke="#82ca9d"
+            dot={false}
+            isAnimationActive={true}
+            animationDuration={300}
+          />
+          <Line
+            type="monotone"
+            data={avgRespData}
+            dataKey="avgResponseTime"
+            stroke="#8884d8"
+            strokeDasharray="5 5"
+            dot={false}
+          />
         </LineChart>
       </ResponsiveContainer>
     </div>

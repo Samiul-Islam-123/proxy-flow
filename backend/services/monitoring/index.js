@@ -107,10 +107,10 @@ io.on('connection', (socket) => {
                 socket.emit("monitoring-data", monitoringResult);
             }
             catch(error){
-                //console.error(error);
+                //console.error(error);x
                 socket.emit("monitoring-error", error.message)
             }
-        },2000)
+        },5000)
     })
 
     socket.on('disconnect', () => {
